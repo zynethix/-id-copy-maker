@@ -1,0 +1,14 @@
+{
+  "name": "id-copy-maker",
+  "private": true,
+  "description": "身份证复印件生成器：产品为项目根的 index.html（零依赖单文件）；本文件只管开发期的端到端测试依赖",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}

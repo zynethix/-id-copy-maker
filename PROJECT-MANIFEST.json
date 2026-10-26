@@ -2,7 +2,7 @@
   "version": 1,
   "phase": "initial-dev",
   "docRoot": {
-    "requirements": "docs/requirements",
+    "requirements": "docs/requirements.md",
     "specs": "docs/requirements/specs",
     "design": "docs/design",
     "modules": "docs/design/modules",
