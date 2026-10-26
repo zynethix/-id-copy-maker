@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob: data:; connect-src 'none'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<title>身份证复印件生成器</title>
+<link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:#f3f4f6;color:#111;font:16px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:0 0 4px}
+.privacy{margin:0 0 12px;color:#333}
+.oldwarn{background:#fff7e6;border:2px solid #e68a00;border-radius:8px;padding:8px 12px;margin:0 0 12px;color:#7a4a00}
+section{background:#fff;border:1px solid #d9dce1;border-radius:10px;padding:14px;margin:0 0 14px}
+.head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}
+.head h2{font-size:18px;margin:0}
+.num{display:inline-block;min-width:26px;height:26px;line-height:26px;text-align:center;border-radius:13px;background:#1d4ed8;color:#fff;font-size:14px}
+.badge{margin-left:auto;font-size:14px;background:#eef2ff;padding:2px 10px;border-radius:12px;color:#1e3a8a}
+button{min-height:48px;font-size:16px;padding:0 18px;border-radius:8px;border:1px solid #777;background:#fff;color:#111;cursor:pointer}
+button.primary{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+button[aria-pressed="true"]{background:#111;color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}
+input[type=text],input[type=date]{font-size:16px;min-height:44px;padding:0 10px;border:1px solid #777;border-radius:6px;width:100%;background:#fff}
+input[type=radio],input[type=checkbox]{width:22px;height:22px;vertical-align:middle;margin:0 8px 0 0}
+label.opt{display:block;min-height:44px;padding:8px 0}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}
+.field{margin:8px 0}
+.field label{display:block;margin:0 0 4px}
+.hint{color:#555;font-size:14px;margin:4px 0}
+.msg{border:2px solid;border-radius:8px;padding:8px 12px;margin:8px 0}
+.msg.error{border-color:#d33;background:#fff0f0;color:#900}
+.msg.warn{border-color:#e68a00;background:#fff7e6;color:#7a4a00}
+.msg.ok{border-color:#2a8a3e;background:#effaf1;color:#14532d}
+.cropwrap{position:relative;margin:8px 0;text-align:center}
+canvas.view{display:block;margin:0 auto;max-width:100%;height:auto;touch-action:none;user-select:none;-webkit-user-select:none;background:#222}
+canvas.mag{position:absolute;pointer-events:none;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+#preview{display:block;box-sizing:border-box;width:calc(100% + 12px);height:auto;margin:0 -6px;border:1px solid #bbb;background:#fff}
+fieldset{border:1px solid #d9dce1;border-radius:8px;margin:0 0 8px}
+.colorsel{display:flex;flex-wrap:wrap;gap:0 24px;margin:8px 0}
+.colorsel label{display:flex;align-items:center;min-height:48px;font-size:16px}
+.spacer{height:32px}
+.cols{min-width:0}
+@media (min-width:1024px){
+main{max-width:1200px}
+.cols{display:grid;grid-template-columns:calc((100% - 476px) * .75) minmax(0,1fr);grid-template-rows:auto auto auto auto 1fr;column-gap:16px;row-gap:0;align-items:start}
+#sec-front{grid-column:1;grid-row:1}
+#sec-back{grid-column:1;grid-row:2}
+#sec-wm{grid-column:1;grid-row:3}
+#sec-export{grid-column:1;grid-row:4}
+#sec-preview{grid-column:2;grid-row:1 / -1;align-self:start;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto}
+}
+</style>
+</head>
+<body>
+<main>
+<h1>身份证复印件生成器</h1>
+<p class="privacy">所有处理都在本机完成，图片不会上传。</p>
+<div class="oldwarn" id="old-warn" role="alert" hidden>此浏览器版本过旧，可能无法正常使用，建议升级后再试</div>
+
+<div class="cols">
+<section id="sec-front" aria-labelledby="t-front">
+  <div class="head"><span class="num">1</span><h2 id="t-front">正面（人像面）</h2><span class="badge" id="front-badge" role="status" aria-live="polite"></span></div>
+  <div class="row"><button type="button" id="front-pick">选图</button><span class="hint" id="front-hint"></span></div>
+  <input type="file" id="front-input" accept="image/*" hidden>
+  <div class="msg" id="front-msg" hidden></div>
+  <div class="msg warn" id="front-warn" hidden></div>
+  <div id="front-crop" hidden>
+    <p class="hint">歪的照片建议重拍或换一张正的图。</p>
+    <div class="cropwrap" id="front-wrap"></div>
+    <div class="row"><button type="button" id="front-rotate">旋转 90°</button><button type="button" class="primary" id="front-confirm">确认裁剪</button><button type="button" id="front-cancel">取消</button></div>
+  </div>
+</section>
+
+<section id="sec-back" aria-labelledby="t-back">
+  <div class="head"><span class="num">2</span><h2 id="t-back">反面（国徽面）</h2><span class="badge" id="back-badge" role="status" aria-live="polite"></span></div>
+  <p class="hint" id="back-sub">可只做一面</p>
+  <div class="row"><button type="button" id="back-pick">选图</button><span class="hint" id="back-hint"></span></div>
+  <input type="file" id="back-input" accept="image/*" hidden>
+  <div class="msg" id="back-msg" hidden></div>
+  <div class="msg warn" id="back-warn" hidden></div>
+  <div id="back-crop" hidden>
+    <p class="hint">歪的照片建议重拍或换一张正的图。</p>
+    <div class="cropwrap" id="back-wrap"></div>
+    <div class="row"><button type="button" id="back-rotate">旋转 90°</button><button type="button" class="primary" id="back-confirm">确认裁剪</button><button type="button" id="back-cancel">取消</button></div>
+  </div>
+</section>
+
+<section id="sec-wm" aria-labelledby="t-wm">
+  <div class="head"><span class="num">3</span><h2 id="t-wm">水印</h2><span class="badge" id="wm-badge" role="status" aria-live="polite"></span></div>
+  <label class="opt"><input type="checkbox" id="wm-on" checked>添加水印（默认开启）</label>
+  <div id="wm-tpls">
+    <label class="opt"><input type="radio" name="wm-tpl" value="t1" checked>仅供____办理业务使用，他用无效 日期</label>
+    <label class="opt"><input type="radio" name="wm-tpl" value="t2">仅用于租房备案，复印无效 日期</label>
+    <label class="opt"><input type="radio" name="wm-tpl" value="t3">仅用于银行开户，复印无效 日期</label>
+    <label class="opt"><input type="radio" name="wm-tpl" value="custom">自定义</label>
+  </div>
+  <div class="field" id="wm-purpose-row"><label for="wm-purpose">用途（必填，最多 10 字）</label><input type="text" id="wm-purpose" maxlength="10" autocomplete="off"></div>
+  <div class="field" id="wm-custom-row"><label for="wm-custom">自定义水印文字（必填，最多 24 字，原样使用）</label><input type="text" id="wm-custom" maxlength="24" autocomplete="off"></div>
+  <div class="field" id="wm-date-row"><label for="wm-date">日期（必填）</label><input type="date" id="wm-date" autocomplete="off"></div>
+</section>
+
+<section id="sec-preview" aria-labelledby="t-pv">
+  <div class="head"><span class="num">4</span><h2 id="t-pv">版面预览</h2><span class="badge" id="pv-badge" role="status" aria-live="polite"></span></div>
+  <p class="hint" id="pv-empty">尚未确认任何一面</p>
+  <canvas id="preview" width="0" height="0" hidden aria-label="A4 版面预览"></canvas>
+  <fieldset class="colorsel"><legend>导出颜色</legend>
+    <label><input type="radio" name="ex-color" value="gray">灰度</label>
+    <label><input type="radio" name="ex-color" value="color" checked>彩色</label>
+  </fieldset>
+  <p class="hint" id="pv-pending" hidden>水印待填写，预览暂不含水印</p>
+</section>
+
+<section id="sec-export" aria-labelledby="t-ex">
+  <div class="head"><span class="num">5</span><h2 id="t-ex">导出与清除</h2><span class="badge" id="ex-badge" role="status" aria-live="polite"></span></div>
+  <div class="row"><button type="button" class="primary" id="ex-pdf">导出 PDF</button><button type="button" class="primary" id="ex-png">导出 PNG</button></div>
+  <div class="hint" id="ex-reason"></div>
+  <div class="msg" id="ex-msg" hidden></div>
+  <div class="spacer"></div>
+  <button type="button" id="clear-all">清除全部</button>
+</section>
+</div>
+</main>
+
+<script id="pure-core">
+// ===== 常量与版面（design §3）=====
+const PAGE_W = 2480, PAGE_H = 3508;
+const CARD_W = 1011, CARD_H = 638, GAP = 354, BORDER = 4;
+const RATIO_W = 85.6, RATIO_H = 54;
+const MAX_EDGE = 4000, JPEG_QUALITY = 0.92, MIN_BOX_RATIO = 0.25;
+const HANDLE_R = 24, HANDLE_R_TOUCH = 32;
+const MAG_SIZE = 120, MAG_ZOOM = 3, MAG_LIFT = 90;
+const WM_ANGLE = -30, WM_FONT_PX = 38, WM_FONT_MIN = 24, WM_PITCH = 170, WM_GAP_X = 76;
+const WM_COLOR = '#6b6b6b', WM_ALPHA = 0.30;
+const WM_PURPOSE_MAX = 10, WM_CUSTOM_MAX = 24, WM_MAX_TEXT_W = 1000;
+const WM_FONT_FAMILY = '"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif';
+const PREVIEW_W = 900, BAND_ROWS = 256, PHYS_PPM = 11811;
+const PDF_MEDIA_W = '595.28', PDF_MEDIA_H = '841.89';
+
+function computeLayout() {
+  const x = Math.floor((PAGE_W - CARD_W) / 2);
+  const total = 2 * CARD_H + GAP;
+  const frontY = Math.floor((PAGE_H - total) / 2);
+  const backY = frontY + CARD_H + GAP;
+  return { pageW: PAGE_W, pageH: PAGE_H, cardW: CARD_W, cardH: CARD_H, gap: GAP, border: BORDER,
+    x: x, frontY: frontY, backY: backY, midY: PAGE_H / 2 };
+}
+
+// ===== 裁剪几何（design §4.3）=====
+function boxHeight(box) { return box.w * RATIO_H / RATIO_W; }
+
+function scaleToMax(w, h, max) {
+  const long = Math.max(w, h);
+  if (long <= max) return { w: w, h: h, scale: 1 };
+  const scale = max / long;
+  return { w: Math.max(1, Math.round(w * scale)), h: Math.max(1, Math.round(h * scale)), scale: scale };
+}
+
+function maxBox(rw, rh) {
+  const w = Math.min(rw, rh * RATIO_W / RATIO_H);
+  return { x: (rw - w) / 2, y: (rh - w * RATIO_H / RATIO_W) / 2, w: w };
+}
+
+function clampNum(v, lo, hi) { return Math.min(Math.max(v, lo), Math.max(lo, hi)); }
+
+function moveBox(box, dx, dy, rw, rh) {
+  const h = boxHeight(box);
+  return { x: clampNum(box.x + dx, 0, rw - box.w), y: clampNum(box.y + dy, 0, rh - h), w: box.w };
+}
+
+function resizeBox(box, corner, px, py, rw, rh, minW) {
+  const h = boxHeight(box);
+  const sx = corner.charAt(1) === 'r' ? 1 : -1;
+  const sy = corner.charAt(0) === 'b' ? 1 : -1;
+  const ax = sx > 0 ? box.x : box.x + box.w;
+  const ay = sy > 0 ? box.y : box.y + h;
+  const dx = (px - ax) * sx;
+  const dy = (py - ay) * sy;
+  const roomX = sx > 0 ? rw - ax : ax;
+  const roomY = sy > 0 ? rh - ay : ay;
+  const maxW = Math.min(roomX, roomY * RATIO_W / RATIO_H);
+  const w = Math.min(Math.max(Math.max(dx, dy * RATIO_W / RATIO_H), minW), maxW);
+  const nh = w * RATIO_H / RATIO_W;
+  return { x: Math.max(0, sx > 0 ? ax : ax - w), y: Math.max(0, sy > 0 ? ay : ay - nh), w: w };
+}
+
+function hitTest(box, px, py, tol) {
+  const h = boxHeight(box);
+  const r = Math.min(tol, box.w / 3);
+  const pts = [['tl', box.x, box.y], ['tr', box.x + box.w, box.y],
+    ['bl', box.x, box.y + h], ['br', box.x + box.w, box.y + h]];
+  let best = null, bestD = Infinity;
+  for (const p of pts) {
+    const d = Math.hypot(px - p[1], py - p[2]);
+    if (d <= r && d < bestD) { best = p[0]; bestD = d; }
+  }
+  if (best) return best;
+  const inside = px >= box.x && px <= box.x + box.w && py >= box.y && py <= box.y + h;
+  return inside ? 'move' : null;
+}
+
+function isLowRes(box) { return Math.round(boxHeight(box)) < CARD_H; }
+
+function rotMatrix(rot, w, h) {
+  if (rot === 90) return [0, 1, -1, 0, h, 0];
+  if (rot === 180) return [-1, 0, 0, -1, w, h];
+  if (rot === 270) return [0, -1, 1, 0, 0, w];
+  return [1, 0, 0, 1, 0, 0];
+}
+
+function cropTransform(rot, w, h, box, dw) {
+  const s = dw / box.w;
+  const m = rotMatrix(rot, w, h);
+  return [m[0] * s, m[1] * s, m[2] * s, m[3] * s, (m[4] - box.x) * s, (m[5] - box.y) * s];
+}
+
+// ===== 水印文字与门（design §5.2、§1.5 R2）=====
+function formatDateCN(dash) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dash));
+  if (!m) return '';
+  const y = +m[1], mo = +m[2], d = +m[3];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return '';
+  return y + '年' + mo + '月' + d + '日';
+}
+
+function watermarkText(wm) {
+  const date = formatDateCN(wm.date);
+  if (wm.tpl === 'custom') {
+    const t = String(wm.custom || '').trim();
+    return t ? t : null;
+  }
+  if (!date) return null;
+  if (wm.tpl === 't1') {
+    const p = String(wm.purpose || '').trim();
+    return p ? '仅供' + p + '办理业务使用，他用无效 ' + date : null;
+  }
+  if (wm.tpl === 't2') return '仅用于租房备案，复印无效 ' + date;
+  if (wm.tpl === 't3') return '仅用于银行开户，复印无效 ' + date;
+  return null;
+}
+
+function validateWatermark(wm) {
+  if (wm.tpl === 'custom') {
+    if (!String(wm.custom || '').trim()) return { ok: false, reason: '请填写水印文字' };
+    return { ok: true, reason: '' };
+  }
+  if (wm.tpl === 't1' && !String(wm.purpose || '').trim()) return { ok: false, reason: '请填写用途' };
+  if (!formatDateCN(wm.date)) return { ok: false, reason: '请选择水印日期' };
+  return { ok: true, reason: '' };
+}
+
+function exportGate(g) {
+  if (!g.hasCard) return { ok: false, reason: '请先确认至少一面' };
+  if (g.busy) return { ok: false, reason: '正在导出' };
+  if (g.wmOn) {
+    const v = validateWatermark(g.wm);
+    if (!v.ok) return { ok: false, reason: v.reason };
+  }
+  return { ok: true, reason: '' };
+}
+
+// ===== 水印平铺（design §5.3）=====
+function fitFontPx(widthAt38) {
+  if (widthAt38 <= WM_MAX_TEXT_W) return WM_FONT_PX;
+  return Math.max(WM_FONT_MIN, Math.floor(WM_FONT_PX * WM_MAX_TEXT_W / widthAt38));
+}
+
+function planWatermark(textW) {
+  const a = Math.abs(WM_ANGLE) * Math.PI / 180;
+  const halfV = (CARD_W * Math.sin(a) + CARD_H * Math.cos(a)) / 2;
+  const halfU = (CARD_W * Math.cos(a) + CARD_H * Math.sin(a)) / 2;
+  const kmax = Math.floor(halfV / WM_PITCH);
+  const step = textW + WM_GAP_X;
+  const lim = halfU + textW / 2;
+  const items = [];
+  for (let k = -kmax; k <= kmax; k++) {
+    const off = (k % 2 !== 0) ? step / 2 : 0;
+    const n0 = Math.ceil((-lim - off) / step);
+    const n1 = Math.floor((lim - off) / step);
+    for (let n = n0; n <= n1; n++) items.push({ u: off + n * step, v: k * WM_PITCH });
+  }
+  return { angleRad: WM_ANGLE * Math.PI / 180, items: items };
+}
+
+function rowsInCard(plan) {
+  const vs = new Set();
+  for (const it of plan.items) if (Math.abs(it.v) <= 300) vs.add(it.v);
+  return vs.size;
+}
+
+function drawWatermark(ctx, text, x, y) {
+  ctx.save();
+  ctx.font = WM_FONT_PX + 'px ' + WM_FONT_FAMILY;
+  const w38 = ctx.measureText(text).width;
+  const fs = fitFontPx(w38);
+  const textW = w38 * fs / WM_FONT_PX;
+  ctx.font = fs + 'px ' + WM_FONT_FAMILY;
+  ctx.beginPath();
+  ctx.rect(x, y, CARD_W, CARD_H);
+  ctx.clip();
+  ctx.translate(x + CARD_W / 2, y + CARD_H / 2);
+  const plan = planWatermark(textW);
+  ctx.rotate(plan.angleRad);
+  ctx.globalAlpha = WM_ALPHA;
+  ctx.fillStyle = WM_COLOR;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const it of plan.items) ctx.fillText(text, it.u, it.v);
+  ctx.restore();
+}
+
+// ===== 版面合成（design §6.1）与灰度（design §7.2）=====
+function composeSheet(ctx, opt) {
+  const L = computeLayout();
+  ctx.save();
+  ctx.scale(opt.k, opt.k);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, L.pageW, L.pageH);
+  ctx.imageSmoothingQuality = 'high';
+  const faces = [[opt.front, L.frontY], [opt.back, L.backY]];
+  for (const f of faces) {
+    if (!f[0]) continue;
+    ctx.drawImage(f[0], L.x, f[1]);
+    if (opt.wmText) drawWatermark(ctx, opt.wmText, L.x, f[1]);
+    ctx.lineWidth = L.border;
+    ctx.strokeStyle = '#000';
+    ctx.strokeRect(L.x + L.border / 2, f[1] + L.border / 2, L.cardW - L.border, L.cardH - L.border);
+  }
+  ctx.restore();
+}
+
+function grayBand(data) {
+  for (let i = 0; i + 3 < data.length; i += 4) {
+    const g = (77 * data[i] + 150 * data[i + 1] + 29 * data[i + 2]) >> 8;
+    data[i] = g; data[i + 1] = g; data[i + 2] = g;
+  }
+}
+
+// ===== PNG 元数据（design §7.3）=====
+let crcTable = null;
+function crc32(bytes) {
+  if (!crcTable) {
+    crcTable = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      crcTable[n] = c >>> 0;
+    }
+  }
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = crcTable[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function readU32(b, o) { return ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0; }
+function writeU32(b, o, v) { b[o] = (v >>> 24) & 255; b[o + 1] = (v >>> 16) & 255; b[o + 2] = (v >>> 8) & 255; b[o + 3] = v & 255; }
+
+function pngChunks(bytes) {
+  const sig = [137, 80, 78, 71, 13, 10, 26, 10];
+  for (let i = 0; i < 8; i++) if (bytes[i] !== sig[i]) throw new Error('不是有效的 PNG 数据');
+  const out = [];
+  let o = 8;
+  while (o + 12 <= bytes.length) {
+    const len = readU32(bytes, o);
+    const type = String.fromCharCode(bytes[o + 4], bytes[o + 5], bytes[o + 6], bytes[o + 7]);
+    out.push({ type: type, start: o, len: len });
+    o += 12 + len;
+  }
+  return out;
+}
+
+function listPngChunks(bytes) { return pngChunks(bytes).map(function (c) { return c.type; }); }
+
+function injectPngPhys(bytes) {
+  const chunks = pngChunks(bytes);
+  if (!chunks.length || chunks[0].type !== 'IHDR') throw new Error('PNG 缺少 IHDR 块');
+  if (chunks.some(function (c) { return c.type === 'pHYs'; })) return bytes;
+  const at = chunks[0].start + 12 + chunks[0].len;
+  const chunk = new Uint8Array(21);
+  writeU32(chunk, 0, 9);
+  chunk.set([0x70, 0x48, 0x59, 0x73], 4);
+  writeU32(chunk, 8, PHYS_PPM);
+  writeU32(chunk, 12, PHYS_PPM);
+  chunk[16] = 1;
+  writeU32(chunk, 17, crc32(chunk.subarray(4, 17)));
+  const out = new Uint8Array(bytes.length + 21);
+  out.set(bytes.subarray(0, at), 0);
+  out.set(chunk, at);
+  out.set(bytes.subarray(at), at + 21);
+  return out;
+}
+
+// ===== JPEG 与 PDF（design §8）=====
+function jpegSegments(bytes) {
+  const segs = [];
+  if (bytes[0] !== 0xFF || bytes[1] !== 0xD8) return segs;
+  let o = 2;
+  while (o + 3 < bytes.length) {
+    if (bytes[o] !== 0xFF) { o++; continue; }
+    const m = bytes[o + 1];
+    if (m === 0xFF) { o++; continue; }
+    if (m === 0x01 || (m >= 0xD0 && m <= 0xD8)) { o += 2; continue; }
+    if (m === 0xD9) break;
+    const len = (bytes[o + 2] << 8) | bytes[o + 3];
+    segs.push({ marker: m, pos: o, len: len });
+    if (m === 0xDA) break;
+    o += 2 + len;
+  }
+  return segs;
+}
+
+function jpegInfo(bytes) {
+  const segs = jpegSegments(bytes);
+  for (const s of segs) {
+    if (s.marker >= 0xC0 && s.marker <= 0xCF && s.marker !== 0xC4 && s.marker !== 0xC8 && s.marker !== 0xCC) {
+      const p = s.pos;
+      return { height: (bytes[p + 5] << 8) | bytes[p + 6], width: (bytes[p + 7] << 8) | bytes[p + 8], components: bytes[p + 9] };
+    }
+  }
+  return null;
+}
+
+function jpegHasExif(bytes) {
+  for (const s of jpegSegments(bytes)) {
+    if (s.marker === 0xE1 && bytes[s.pos + 4] === 0x45 && bytes[s.pos + 5] === 0x78 &&
+        bytes[s.pos + 6] === 0x69 && bytes[s.pos + 7] === 0x66) return true;
+  }
+  return false;
+}
+
+function strBytes(s) {
+  const b = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i) & 0xFF;
+  return b;
+}
+
+function buildPdf(jpeg, width, height, comps) {
+  let cs;
+  if (comps === 3) cs = '/DeviceRGB';
+  else if (comps === 1) cs = '/DeviceGray';
+  else throw new Error('导出失败：不支持的图像颜色格式');
+  const parts = [], offsets = [];
+  let total = 0;
+  const add = function (x) { const b = typeof x === 'string' ? strBytes(x) : x; parts.push(b); total += b.length; };
+  const begin = function (n) { offsets[n] = total; add(n + ' 0 obj\n'); };
+  const content = 'q ' + PDF_MEDIA_W + ' 0 0 ' + PDF_MEDIA_H + ' 0 0 cm /Im0 Do Q';
+  add('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  begin(1); add('<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+  begin(2); add('<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n');
+  begin(3);
+  add('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PDF_MEDIA_W + ' ' + PDF_MEDIA_H + '] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n');
+  begin(4);
+  add('<< /Type /XObject /Subtype /Image /Width ' + width + ' /Height ' + height + ' /ColorSpace ' + cs +
+    ' /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpeg.length + ' >>\nstream\n');
+  add(jpeg);
+  add('\nendstream\nendobj\n');
+  begin(5); add('<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream\nendobj\n');
+  const xrefPos = total;
+  add('xref\n0 6\n0000000000 65535 f \n');
+  for (let n = 1; n <= 5; n++) add(('0000000000' + offsets[n]).slice(-10) + ' 00000 n \n');
+  add('trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xrefPos + '\n%%EOF\n');
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+// ===== 文件名（design §7.4）=====
+function formatYmd(date) {
+  const p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+  return String(date.getFullYear()) + p2(date.getMonth() + 1) + p2(date.getDate());
+}
+
+function exportFileName(date, ext) { return '身份证复印件_' + formatYmd(date) + '.' + ext; }
+
+const IDCopyPure = Object.freeze({
+  PAGE_W, PAGE_H, CARD_W, CARD_H, GAP, BORDER, RATIO_W, RATIO_H, MAX_EDGE, JPEG_QUALITY, MIN_BOX_RATIO,
+  HANDLE_R, HANDLE_R_TOUCH, MAG_SIZE, MAG_ZOOM, MAG_LIFT, WM_PURPOSE_MAX, WM_CUSTOM_MAX, PREVIEW_W, BAND_ROWS,
+  computeLayout, boxHeight, scaleToMax, maxBox, moveBox, resizeBox, hitTest, isLowRes, rotMatrix, cropTransform,
+  formatDateCN, watermarkText, validateWatermark, exportGate, fitFontPx, planWatermark, rowsInCard, drawWatermark,
+  composeSheet, grayBand, crc32, listPngChunks, injectPngPhys, jpegInfo, jpegHasExif, buildPdf,
+  formatYmd, exportFileName
+});
+</script>
+
+<script id="app">
+// ===== 状态（design §2.3）=====
+const NAMES = ['front', 'back'];
+const els = {};
+let previewRaf = 0;
+
+function todayLocal() {
+  const s = formatYmd(new Date());
+  return s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6, 8);
+}
+
+function newSide() {
+  return { card: null, lowRes: false, lowResH: 0, loading: false, cropper: null, message: null };
+}
+
+function createState() {
+  return {
+    epoch: 0, urls: [],
+    sides: { front: newSide(), back: newSide() },
+    wm: { on: true, tpl: 't1', purpose: '', custom: '', date: todayLocal() },
+    exportColor: 'color', busy: false, exportMsg: null, exportCanvas: null
+  };
+}
+
+const state = createState();
+
+function bindElements() {
+  Array.from(document.querySelectorAll('[id]')).forEach(function (e) { els[e.id] = e; });
+}
+
+function checkBrowserSupport() {
+  const ok = !!(HTMLCanvasElement.prototype.toBlob && window.PointerEvent && window.URL && URL.createObjectURL);
+  els['old-warn'].hidden = ok;
+}
+
+// ===== 地址登记（design §11.2）=====
+function registerUrl(u) { state.urls.push(u); return u; }
+
+function revokeUrl(u) {
+  const i = state.urls.indexOf(u);
+  if (i >= 0) state.urls.splice(i, 1);
+  URL.revokeObjectURL(u);
+}
+
+// ===== 图像加载（design §4.1）=====
+function hasCropper() { return NAMES.some(function (n) { return !!state.sides[n].cropper; }); }
+
+function canPickImage(name) {
+  return !hasCropper() && !NAMES.some(function (n) { return state.sides[n].loading; });
+}
+
+function decodeErrorMessage(file) {
+  const heic = /^image\/hei[cf]$/i.test(file.type) || /\.hei[cf]$/i.test(file.name || '');
+  if (heic) return '这张图是 HEIC 格式，当前浏览器无法读取。请在手机相册里用兼容格式（JPG）导出，或换一张 JPG、PNG 图。';
+  return '无法读取这张图片。请换一张 JPG 或 PNG 图。';
+}
+
+// 解码收尾：摘掉回调并移除 src 属性（不赋空串，design §4.1 步 6）
+function releaseImg(img) {
+  img.onload = null;
+  img.onerror = null;
+  img.removeAttribute('src');
+}
+
+function decodeToSource(file, epoch) {
+  return new Promise(function (resolve, reject) {
+    const url = registerUrl(URL.createObjectURL(file));
+    const img = new Image();
+    img.onload = function () {
+      if (epoch !== state.epoch) { releaseImg(img); revokeUrl(url); resolve(null); return; }
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const s = scaleToMax(w, h, MAX_EDGE);
+      const c = document.createElement('canvas');
+      try {
+        c.width = s.w; c.height = s.h;
+        const ctx = w && h ? c.getContext('2d') : null;
+        if (!ctx) throw new Error('decode');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, s.w, s.h);
+      } catch (err) {
+        c.width = 0; c.height = 0;
+        releaseImg(img);
+        revokeUrl(url);
+        reject(err);
+        return;
+      }
+      releaseImg(img);
+      revokeUrl(url);
+      resolve(c);
+    };
+    img.onerror = function () { releaseImg(img); revokeUrl(url); reject(new Error('decode')); };
+    img.src = url;
+  });
+}
+
+function onFilePicked(name) {
+  const input = els[name + '-input'];
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file || !canPickImage(name) || state.busy) return;
+  const epoch = state.epoch;
+  const side = state.sides[name];
+  side.loading = true;
+  side.message = null;
+  render();
+  decodeToSource(file, epoch).then(function (src) {
+    if (epoch !== state.epoch) { if (src) { src.width = 0; src.height = 0; } return; }
+    state.sides[name].loading = false;
+    try {
+      startCropper(name, src);
+    } catch (err) {
+      releaseCropper(name);
+      src.width = 0; src.height = 0;
+      setMessage(name, { kind: 'error', text: '无法创建画布，可能内存不足。请点“清除全部”后重试。' });
+    }
+  }, function () {
+    if (epoch !== state.epoch) return;
+    state.sides[name].loading = false;
+    setMessage(name, { kind: 'error', text: decodeErrorMessage(file) });
+  });
+}
+
+// ===== 裁剪器（design §4.2、§4.4 至 §4.6）=====
+function startCropper(name, src) {
+  const side = state.sides[name];
+  const c = { src: src, rot: 0, rw: src.width, rh: src.height, box: maxBox(src.width, src.height),
+    drag: null, view: null, mag: null, raf: 0 };
+  side.cropper = c;
+  side.message = null;
+  render();
+  const wrap = els[name + '-wrap'];
+  const cssW = Math.max(120, Math.min(wrap.clientWidth || 720, 720));
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cv = document.createElement('canvas');
+  cv.className = 'view';
+  cv.width = Math.round(cssW * dpr);
+  cv.height = Math.round(cv.width * c.rh / c.rw);
+  cv.style.width = cssW + 'px';
+  c.view = { canvas: cv, ctx: cv.getContext('2d'), cssW: cssW, dpr: cv.width / cssW };
+  const mg = document.createElement('canvas');
+  mg.className = 'mag';
+  mg.width = MAG_SIZE; mg.height = MAG_SIZE;
+  mg.style.width = MAG_SIZE + 'px'; mg.style.height = MAG_SIZE + 'px';
+  mg.style.display = 'none';
+  c.mag = mg;
+  cv.addEventListener('pointerdown', function (e) { onCropPointerDown(name, e); });
+  cv.addEventListener('pointermove', function (e) { onCropPointerMove(name, e); });
+  cv.addEventListener('pointerup', function (e) { onCropPointerUp(name, e); });
+  cv.addEventListener('pointercancel', function (e) { onCropPointerUp(name, e); });
+  wrap.appendChild(cv);
+  wrap.appendChild(mg);
+  drawCropperView(name);
+}
+
+function drawCropperView(name) {
+  const c = state.sides[name].cropper;
+  if (!c) return;
+  const cv = c.view.canvas, ctx = c.view.ctx, d = c.view.dpr;
+  const hh = Math.round(cv.width * c.rh / c.rw);
+  if (cv.height !== hh) cv.height = hh;
+  const k = cv.width / c.rw;
+  const m = rotMatrix(c.rot, c.src.width, c.src.height);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(m[0] * k, m[1] * k, m[2] * k, m[3] * k, m[4] * k, m[5] * k);
+  ctx.drawImage(c.src, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const x = c.box.x * k, y = c.box.y * k, w = c.box.w * k, h = boxHeight(c.box) * k;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0, 0, cv.width, y);
+  ctx.fillRect(0, y + h, cv.width, cv.height - y - h);
+  ctx.fillRect(0, y, x, h);
+  ctx.fillRect(x + w, y, cv.width - x - w, h);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2 * d;
+  ctx.strokeRect(x, y, w, h);
+  const hs = 7 * d;
+  ctx.fillStyle = '#1d4ed8';
+  ctx.lineWidth = 2 * d;
+  [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(function (p) {
+    ctx.fillRect(p[0] - hs, p[1] - hs, hs * 2, hs * 2);
+    ctx.strokeRect(p[0] - hs, p[1] - hs, hs * 2, hs * 2);
+  });
+}
+
+function toImagePoint(c, e) {
+  const r = c.view.canvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * c.rw, y: (e.clientY - r.top) / r.height * c.rh };
+}
+
+function handleRadius(c, e) {
+  const r = c.view.canvas.getBoundingClientRect();
+  return (e.pointerType === 'touch' ? HANDLE_R_TOUCH : HANDLE_R) / (r.width / c.rw);
+}
+
+function onCropPointerDown(name, e) {
+  const c = state.sides[name].cropper;
+  if (!c || !e.isPrimary || c.drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  const p = toImagePoint(c, e);
+  const hit = hitTest(c.box, p.x, p.y, handleRadius(c, e));
+  if (!hit) return;
+  e.preventDefault();
+  c.view.canvas.setPointerCapture(e.pointerId);
+  const b = c.box;
+  const cx = hit.charAt(1) === 'r' ? b.x + b.w : b.x;
+  const cy = hit.charAt(0) === 'b' ? b.y + boxHeight(b) : b.y;
+  c.drag = { pointerId: e.pointerId, mode: hit === 'move' ? 'move' : 'corner', corner: hit,
+    startBox: { x: b.x, y: b.y, w: b.w }, startPt: p, offX: cx - p.x, offY: cy - p.y,
+    touch: e.pointerType === 'touch', css: null };
+  onCropPointerMove(name, e);
+}
+
+function onCropPointerMove(name, e) {
+  const c = state.sides[name].cropper;
+  if (!c || !c.drag || e.pointerId !== c.drag.pointerId) return;
+  const d = c.drag, p = toImagePoint(c, e);
+  if (d.mode === 'move') {
+    c.box = moveBox(d.startBox, p.x - d.startPt.x, p.y - d.startPt.y, c.rw, c.rh);
+  } else {
+    const minW = maxBox(c.rw, c.rh).w * MIN_BOX_RATIO;
+    c.box = resizeBox(d.startBox, d.corner, p.x + d.offX, p.y + d.offY, c.rw, c.rh, minW);
+  }
+  const r = c.view.canvas.getBoundingClientRect();
+  d.css = { x: e.clientX - r.left, y: e.clientY - r.top };
+  scheduleCropDraw(name);
+}
+
+function onCropPointerUp(name, e) {
+  const c = state.sides[name].cropper;
+  if (!c || !c.drag || e.pointerId !== c.drag.pointerId) return;
+  c.drag = null;
+  hideMagnifier(c);
+  scheduleCropDraw(name);
+}
+
+function scheduleCropDraw(name) {
+  const c = state.sides[name].cropper;
+  if (!c || c.raf) return;
+  c.raf = requestAnimationFrame(function () {
+    c.raf = 0;
+    if (state.sides[name].cropper !== c) return;
+    drawCropperView(name);
+    drawMagnifier(c);
+  });
+}
+
+function rotateCropper(name) {
+  const c = state.sides[name].cropper;
+  if (!c || c.drag || state.busy) return;
+  c.rot = (c.rot + 90) % 360;
+  c.rw = c.rot % 180 === 0 ? c.src.width : c.src.height;
+  c.rh = c.rot % 180 === 0 ? c.src.height : c.src.width;
+  c.box = maxBox(c.rw, c.rh);
+  drawCropperView(name);
+}
+
+function confirmCrop(name) {
+  const side = state.sides[name], c = side.cropper;
+  if (!c || state.busy) return;
+  const card = document.createElement('canvas');
+  card.width = CARD_W; card.height = CARD_H;
+  const ctx = card.getContext('2d');
+  if (!ctx) { setMessage(name, { kind: 'error', text: '无法创建画布，可能内存不足。请点“清除全部”后重试。' }); return; }
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+  const t = cropTransform(c.rot, c.src.width, c.src.height, c.box, CARD_W);
+  ctx.setTransform(t[0], t[1], t[2], t[3], t[4], t[5]);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(c.src, 0, 0);
+  if (side.card) { side.card.width = 0; side.card.height = 0; }
+  side.card = card;
+  side.lowRes = isLowRes(c.box);
+  side.lowResH = Math.round(boxHeight(c.box));
+  side.message = null;
+  releaseCropper(name);
+  state.exportMsg = null;
+  render();
+}
+
+function releaseCropper(name) {
+  const side = state.sides[name], c = side.cropper;
+  if (!c) return;
+  if (c.raf) cancelAnimationFrame(c.raf);
+  [c.view && c.view.canvas, c.mag].forEach(function (cv) {
+    if (!cv) return;
+    cv.width = 0; cv.height = 0;
+    if (cv.parentNode) cv.parentNode.removeChild(cv);
+  });
+  c.src.width = 0; c.src.height = 0;
+  side.cropper = null;
+}
+
+function cancelCrop(name) {
+  const side = state.sides[name], c = side.cropper;
+  if (!c || state.busy) return;
+  side.message = null;
+  releaseCropper(name);
+  render();
+}
+
+function hideMagnifier(c) { if (c.mag) c.mag.style.display = 'none'; }
+
+function drawMagnifier(c) {
+  const d = c.drag;
+  if (!d || d.mode !== 'corner' || !d.touch || !d.css) { hideMagnifier(c); return; }
+  const cv = c.view.canvas, r = cv.getBoundingClientRect(), b = c.box, k = cv.width / c.rw;
+  const cx = (d.corner.charAt(1) === 'r' ? b.x + b.w : b.x) * k;
+  const cy = (d.corner.charAt(0) === 'b' ? b.y + boxHeight(b) : b.y) * k;
+  const half = MAG_SIZE / MAG_ZOOM * (cv.width / r.width) / 2;
+  const mg = c.mag, mctx = mg.getContext('2d');
+  mctx.clearRect(0, 0, MAG_SIZE, MAG_SIZE);
+  mctx.drawImage(cv, cx - half, cy - half, half * 2, half * 2, 0, 0, MAG_SIZE, MAG_SIZE);
+  mctx.strokeStyle = '#d33';
+  mctx.lineWidth = 1;
+  mctx.beginPath();
+  mctx.moveTo(MAG_SIZE / 2, 0); mctx.lineTo(MAG_SIZE / 2, MAG_SIZE);
+  mctx.moveTo(0, MAG_SIZE / 2); mctx.lineTo(MAG_SIZE, MAG_SIZE / 2);
+  mctx.stroke();
+  const fx = cv.offsetLeft + d.css.x, fy = cv.offsetTop + d.css.y;
+  let centerY = fy - MAG_LIFT;
+  if (centerY - MAG_SIZE / 2 < 0) centerY = fy + MAG_LIFT;
+  const maxLeft = Math.max(0, cv.parentNode.clientWidth - MAG_SIZE);
+  mg.style.left = Math.min(Math.max(fx - MAG_SIZE / 2, 0), maxLeft) + 'px';
+  mg.style.top = (centerY - MAG_SIZE / 2) + 'px';
+  mg.style.display = 'block';
+}
+
+// ===== 水印表单（design §5.1）=====
+function readWatermarkForm() {
+  const w = state.wm;
+  w.purpose = els['wm-purpose'].value;
+  w.custom = els['wm-custom'].value;
+  w.date = els['wm-date'].value;
+  const sel = document.querySelector('input[name="wm-tpl"]:checked');
+  if (sel) w.tpl = sel.value;
+}
+
+function onWatermarkToggle() {
+  const want = els['wm-on'].checked;
+  if (state.wm.on && !want) {
+    if (!confirm('关闭水印后，导出的复印件上将没有任何防挪用文字。确定关闭吗？')) {
+      els['wm-on'].checked = true;
+      return;
+    }
+  }
+  state.wm.on = want;
+  state.exportMsg = null;
+  render();
+}
+
+function onWatermarkInput() {
+  readWatermarkForm();
+  state.exportMsg = null;
+  render();
+}
+
+function currentWmText() {
+  if (!state.wm.on || !validateWatermark(state.wm).ok) return null;
+  return watermarkText(state.wm);
+}
+
+function currentGate() {
+  return exportGate({ hasCard: !!(state.sides.front.card || state.sides.back.card),
+    wmOn: state.wm.on, wm: state.wm, busy: state.busy });
+}
+
+// ===== 预览（design §6.2）=====
+function schedulePreview() {
+  if (previewRaf) return;
+  previewRaf = requestAnimationFrame(function () { previewRaf = 0; drawPreview(); });
+}
+
+function drawPreview() {
+  const cv = els.preview, f = state.sides.front.card, b = state.sides.back.card;
+  const has = !!(f || b);
+  els['pv-empty'].hidden = has;
+  els['pv-pending'].hidden = !(has && state.wm.on && !validateWatermark(state.wm).ok);
+  cv.hidden = !has;
+  if (!has) { cv.width = 0; cv.height = 0; return; }
+  const ph = Math.round(PREVIEW_W * PAGE_H / PAGE_W);
+  if (cv.width !== PREVIEW_W || cv.height !== ph) { cv.width = PREVIEW_W; cv.height = ph; }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  composeSheet(ctx, { k: PREVIEW_W / PAGE_W, front: f, back: b, wmText: currentWmText() });
+  if (state.exportColor === 'gray') grayscaleCanvas(ctx);
+}
+
+// ===== 导出（design §7）=====
+function encodeCanvas(canvas, kind) {
+  return new Promise(function (resolve) {
+    const done = function (blob) { canvas.width = 0; canvas.height = 0; resolve(blob); };
+    if (kind === 'png') canvas.toBlob(done, 'image/png');
+    else canvas.toBlob(done, 'image/jpeg', JPEG_QUALITY);
+  });
+}
+
+function grayscaleCanvas(ctx) {
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  for (let y = 0; y < ch; y += BAND_ROWS) {
+    const id = ctx.getImageData(0, y, cw, Math.min(BAND_ROWS, ch - y));
+    grayBand(id.data);
+    ctx.putImageData(id, 0, y);
+  }
+}
+
+function buildExportBytes(kind, bytes) {
+  if (kind === 'png') return injectPngPhys(bytes);
+  const info = jpegInfo(bytes);
+  if (!info) throw new Error('导出失败：生成的图像无法解析');
+  if (info.width !== PAGE_W || info.height !== PAGE_H) throw new Error('导出失败：生成的图像尺寸不符');
+  return buildPdf(bytes, info.width, info.height, info.components);
+}
+
+function downloadBlob(blob, fileName) {
+  const url = registerUrl(URL.createObjectURL(blob));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function () { revokeUrl(url); }, 60000);
+}
+
+function dropExportCanvas(big) {
+  if (big) { big.width = 0; big.height = 0; }
+  if (state.exportCanvas === big) state.exportCanvas = null;
+}
+
+function exportFail(text, big) {
+  dropExportCanvas(big);
+  state.busy = false;
+  state.exportMsg = { kind: 'error', text: text.indexOf('导出失败') === 0 ? text : '导出失败：' + text };
+  render();
+}
+
+async function onExport(kind) {
+  const gate = currentGate();
+  if (!gate.ok) { state.exportMsg = { kind: 'error', text: gate.reason }; render(); return; }
+  const wmText = state.wm.on ? currentWmText() : null;
+  if (state.wm.on && wmText === null) { exportFail('水印文字不完整，请补全后重试', null); return; }
+  const epoch = state.epoch;
+  let big = null;
+  state.busy = true;
+  state.exportMsg = null;
+  render();
+  try {
+    big = document.createElement('canvas');
+    big.width = PAGE_W; big.height = PAGE_H;
+    state.exportCanvas = big;
+    const ctx = big.getContext('2d');
+    if (!ctx) throw new Error('导出失败：浏览器无法创建画布，可能内存不足。请点"清除全部"后重试');
+    composeSheet(ctx, { k: 1, front: state.sides.front.card, back: state.sides.back.card, wmText: wmText });
+    if (state.exportColor === 'gray') grayscaleCanvas(ctx);
+    const blob = await encodeCanvas(big, kind);
+    dropExportCanvas(big);
+    big = null;
+    if (epoch !== state.epoch) return;
+    if (!blob) throw new Error('导出失败：浏览器没有生成文件，请重试');
+    const bytes = buildExportBytes(kind, new Uint8Array(await blob.arrayBuffer()));
+    if (epoch !== state.epoch) return;
+    const name = exportFileName(new Date(), kind);
+    downloadBlob(new Blob([bytes], { type: kind === 'pdf' ? 'application/pdf' : 'image/png' }), name);
+    state.busy = false;
+    state.exportMsg = { kind: 'ok', text: '已导出：' + name };
+    render();
+  } catch (err) {
+    if (epoch === state.epoch) exportFail(String(err && err.message || err), big);
+    else dropExportCanvas(big);
+  }
+}
+
+// ===== 清除全部（design §9）=====
+function clearAll() {
+  state.epoch += 1;
+  const epoch = state.epoch;
+  NAMES.forEach(function (n) {
+    const s = state.sides[n];
+    releaseCropper(n);
+    if (s.card) { s.card.width = 0; s.card.height = 0; }
+    els[n + '-input'].value = '';
+  });
+  state.urls.slice().forEach(function (u) { revokeUrl(u); });
+  els.preview.width = 0; els.preview.height = 0; els.preview.hidden = true;
+  dropExportCanvas(state.exportCanvas);
+  Object.assign(state, createState());
+  state.epoch = epoch;
+  render();
+}
+
+// ===== 界面刷新（design §10）=====
+function setMessage(name, msg) {
+  state.sides[name].message = msg;
+  render();
+}
+
+function showMsg(el, msg) {
+  el.hidden = !msg;
+  if (!msg) return;
+  el.className = 'msg ' + msg.kind;
+  el.textContent = msg.text;
+  el.setAttribute('role', msg.kind === 'error' ? 'alert' : 'status');
+}
+
+function setVal(el, v) { if (el.value !== v) el.value = v; }
+
+function lowResWarn(s) {
+  if (!s.card || !s.lowRes) return null;
+  return { kind: 'warn', text: '画质不足：所选区域只有 ' + s.lowResH + ' 像素高，低于输出所需的 ' + CARD_H +
+    ' 像素，已放大，打印可能发糊。仍可继续导出。' };
+}
+
+function renderSide(name) {
+  const s = state.sides[name], c = s.cropper;
+  let t = '未选图';
+  if (s.loading) t = '解码中…';
+  else if (c) t = '裁剪中，请调整后点"确认裁剪"';
+  else if (s.card) t = '已确认' + (s.lowRes ? '，画质不足' : '');
+  els[name + '-badge'].textContent = t;
+  els[name + '-pick'].disabled = !canPickImage(name) || state.busy;
+  els[name + '-hint'].textContent = hasCropper() ? '请先确认或取消当前裁剪' : '';
+  showMsg(els[name + '-msg'], s.message);
+  showMsg(els[name + '-warn'], lowResWarn(s));
+  els[name + '-crop'].hidden = !c;
+  ['rotate', 'confirm', 'cancel'].forEach(function (k) { els[name + '-' + k].disabled = state.busy; });
+  if (name === 'back') els['back-sub'].hidden = !!(s.card || c || s.loading);
+}
+
+function renderWatermark() {
+  const w = state.wm, off = state.busy || !w.on;
+  els['wm-on'].checked = w.on;
+  els['wm-on'].disabled = state.busy;
+  Array.from(document.getElementsByName('wm-tpl')).forEach(function (r) { r.checked = r.value === w.tpl; r.disabled = off; });
+  setVal(els['wm-purpose'], w.purpose);
+  setVal(els['wm-custom'], w.custom);
+  setVal(els['wm-date'], w.date);
+  ['wm-purpose', 'wm-custom', 'wm-date'].forEach(function (id) { els[id].disabled = off; });
+  els['wm-purpose-row'].hidden = w.tpl !== 't1';
+  els['wm-custom-row'].hidden = w.tpl !== 'custom';
+  els['wm-date-row'].hidden = w.tpl === 'custom';
+  const v = validateWatermark(w);
+  if (!w.on) els['wm-badge'].textContent = '已关闭';
+  else if (v.ok) els['wm-badge'].textContent = '已开启：' + watermarkText(w);
+  else els['wm-badge'].textContent = '已开启，待填写：' + v.reason;
+}
+
+function renderPreviewStatus() {
+  const f = !!state.sides.front.card, b = !!state.sides.back.card;
+  els['pv-badge'].textContent = !(f || b) ? '尚未确认任何一面' :
+    '已生成（' + (f && b ? '正反两面' : f ? '只含正面' : '只含反面') + '）';
+  Array.from(document.getElementsByName('ex-color')).forEach(function (r) {
+    r.checked = r.value === state.exportColor;
+    r.disabled = state.busy;
+  });
+}
+
+function renderExport() {
+  const gate = currentGate(), m = state.exportMsg;
+  els['ex-pdf'].disabled = !gate.ok;
+  els['ex-png'].disabled = !gate.ok;
+  els['ex-reason'].textContent = gate.ok ? '' : gate.reason;
+  if (state.busy) els['ex-badge'].textContent = '导出中…';
+  else if (!gate.ok) els['ex-badge'].textContent = '不可导出：' + gate.reason;
+  else els['ex-badge'].textContent = m && m.kind === 'ok' ? m.text : '可导出';
+  showMsg(els['ex-msg'], m);
+}
+
+function render() {
+  NAMES.forEach(function (n) { renderSide(n); });
+  renderWatermark();
+  renderPreviewStatus();
+  renderExport();
+  schedulePreview();
+}
+
+function init() {
+  bindElements();
+  checkBrowserSupport();
+  NAMES.forEach(function (n) {
+    els[n + '-pick'].addEventListener('click', function () { els[n + '-input'].click(); });
+    els[n + '-input'].addEventListener('change', function () { onFilePicked(n); });
+    els[n + '-rotate'].addEventListener('click', function () { rotateCropper(n); });
+    els[n + '-confirm'].addEventListener('click', function () { confirmCrop(n); });
+    els[n + '-cancel'].addEventListener('click', function () { cancelCrop(n); });
+  });
+  els['wm-on'].addEventListener('change', onWatermarkToggle);
+  Array.from(document.getElementsByName('wm-tpl')).forEach(function (r) { r.addEventListener('change', onWatermarkInput); });
+  ['wm-purpose', 'wm-custom', 'wm-date'].forEach(function (id) {
+    els[id].addEventListener('input', onWatermarkInput);
+    els[id].addEventListener('change', onWatermarkInput);
+  });
+  Array.from(document.getElementsByName('ex-color')).forEach(function (r) {
+    r.addEventListener('change', function () { state.exportColor = r.value; state.exportMsg = null; render(); });
+  });
+  els['ex-pdf'].addEventListener('click', function () { onExport('pdf'); });
+  els['ex-png'].addEventListener('click', function () { onExport('png'); });
+  els['clear-all'].addEventListener('click', clearAll);
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
