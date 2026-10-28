@@ -1,4 +1,7 @@
 node_modules/
 test-results/
 playwright-report/
+test/e2e/runs/
 .DS_Store
+.thincoder/*
+!.thincoder/skills/

@@ -129,6 +129,10 @@ test('S6 选错文件：非图片与 HEIC 给出明确提示，原来的卡片�
 
   await pickImage(page, 'front', img);
   await expect(page.locator('#front-msg')).toBeHidden();
-  // 读不了的文件由页面自己提示用户，不应抛出未处理的异常
-  expect(errors.filter((e) => !/Failed to load resource|net::/.test(e))).toEqual([]);
+  // 读不了的文件由页面自己提示用户，不应抛出未处理的异常。
+  // 放过两类消息：加载失败的资源报错（坏文件本身读不了）；trace 录制在页面里读取 blob 地址、被产品 CSP
+  // 的 connect-src 'none' 拦下的消息（关闭 trace 时不出现，产品行为符合需求 §8-1）。其它控制台错误仍判失败。
+  // 这条规则也会放过产品自己对 blob: 发出的请求；需求 §8-1「无网络请求」由 S11 的请求计数兜底，这里放过不会漏掉产品外发。
+  const traceCsp = (e) => /^Connecting to 'blob:/.test(e) && e.includes("connect-src 'none'");
+  expect(errors.filter((e) => !/Failed to load resource|net::/.test(e) && !traceCsp(e))).toEqual([]);
 });

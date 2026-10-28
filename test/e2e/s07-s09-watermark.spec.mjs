@@ -114,13 +114,22 @@ test('S9 关闭水印：提示一次，取消则保持开启；确定后预览�
   await makeSide(page, 'front', img);
   await makeSide(page, 'back', img);
   await page.locator('#wm-purpose').fill('开户');
+  // 水印日期固定，导出读数不随运行当天的日期变化（日期变了，水印文字的笔画像素跟着变）
+  await page.locator('#wm-date').fill('2026-01-05');
   await page.waitForTimeout(150);
   expect((await watermarkOnPreview(page, PREVIEW.front)).marked).toBeGreaterThan(0.02);
   // 开着水印的导出：两张卡片上都有符合 §7-3 的水印，纸面空白处没有
   const on = await exportFile(page, 'png');
   for (const r of [SHEET.front, SHEET.back]) expectWatermarkStyle(await watermarkOnFile(page, on.bytes, 'image/png', r));
+  // PDF 里是 JPEG：压缩会把三个通道拉开十几到二十，只看有水印、斜向与行数；颜色与透明度由上一行的 PNG 断言
   const onPdf = parsePdf((await exportFile(page, 'pdf')).bytes).jpeg;
-  expectWatermarkStyle(await watermarkOnFile(page, onPdf, 'image/jpeg', SHEET.front));
+  for (const r of [SHEET.front, SHEET.back]) {
+    const wp = await watermarkOnFile(page, onPdf, 'image/jpeg', r);
+    expect(wp.marked).toBeGreaterThan(0.02);
+    expect(Math.abs(wp.angleDeg)).toBeGreaterThanOrEqual(15);
+    expect(Math.abs(wp.angleDeg)).toBeLessThanOrEqual(60);
+    expect(wp.rows).toBeGreaterThanOrEqual(2);
+  }
 
   const dialogs = [];
   // 3 点取消：保持开启，预览水印还在

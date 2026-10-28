@@ -1,8 +1,6 @@
 # id-copy-maker 功能测试用例集
 
-需求来源：docs/requirements.md。本文从使用者的角度出发，按业务场景写端到端用例：用户做什么操作，看到什么、拿到什么文件。期望结果只写用户能看见或能量出来的东西，比如页面文字、徽标状态、打开的导出文件、打印件。内部读数和实现检查不在本文。
-
-需求点记法：「需求 §N-k」表示需求文档第 N 节的第 k 条，按条目出现的先后数。
+需求来源：docs/requirements.md。本文是 id-copy-maker 的功能测试用例集：从使用者的角度出发，按业务场景写端到端用例。用例的写法、需求点记法、脚本与执行规矩见项目技能 `.thincoder/skills/test-case-design`、`test-script-gen`、`test-run`、`test-triage`。
 
 ## 1. 执行约定
 
@@ -10,11 +8,11 @@
 
 | 记号 | 含义 |
 |---|---|
-| 自动 | Playwright 脚本在本机 Chrome 上以 file:// 打开 `index.html`，按用户操作走一遍并检查页面与导出文件；命令 `npm run test:e2e`，脚本在 `test/e2e/`，文件名以场景编号开头。运行前提：Node 20 及以上、本机已装 Chrome，执行过 `npm install` |
+| 自动 | Playwright 脚本在本机 Chrome 上以 file:// 打开 `index.html`，按用户操作走一遍并检查页面与导出文件；命令 `npm run test:e2e`（可在 `--` 后写触发原因），脚本在 `test/e2e/`。每次运行的截图、trace 与 HTML 报告存在 `test/e2e/runs/<时间>/`（不进版本库，只留最近 10 次），执行记录自动追加到 `docs/tests/run-log.md`。排查时单独重跑某个用例用 `npx playwright test <脚本文件> -g <用例名>`，证据写进 `test/e2e/runs/latest/`，不进执行记录。运行前提：Node 20 及以上、本机已装 Chrome，执行过 `npm install` |
 | 桌面 | 电脑上的 Chrome、Edge、Safari 最新版，双击 `index.html` 打开（file://），由测试执行者手工操作 |
 | 真机 | iOS Safari 16 及以上、Android Chrome 最近两个大版本，由产品所有者在自己的手机上执行 |
 
-各场景的执行方写在场景开头。自动脚本用程序生成的 mock 样张代替 M1 至 M8，尺寸、方向、元数据按下表构造；HEIC 用带 HEIC 文件头的假数据。
+各场景的执行方写在场景开头。自动脚本的 M1 至 M8 按下表的尺寸、方向、元数据在运行时生成；HEIC 用带 HEIC 文件头的假数据。
 
 ### 1.2 测试素材
 
@@ -302,4 +300,4 @@
 
 ## 5. 测试记录
 
-每轮执行在当轮批次记录里写一张表：场景编号、执行方与浏览器版本、结果（通过 / 不通过 / 未执行）、不通过时看到的现象。自动部分记 `npm run test:e2e` 的通过数；手工部分为 S1 第 10 步、S15 的 Edge 与 Safari 及旧浏览器；真机部分为 S12、S13 第 3 步、S6 第 4 步、S11 第 4 步，由所有者执行。
+自动执行记录在 `docs/tests/run-log.md`。手工与真机结果记在当轮批次记录。本项目需要手工执行的是 S1 第 10 步、S8 导出画面里水印文字的逐字比对，以及 S15 的 Edge、Safari 和旧浏览器；需要所有者在真机上执行的是 S12、S13 第 3 步、S6 第 4 步、S11 第 4 步。
