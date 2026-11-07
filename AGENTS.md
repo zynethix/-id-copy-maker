@@ -7,7 +7,7 @@
 1. 每个开发批次开始前，先列出要动的文件；完成后展示 diff 并报告结果。
 2. 完成一个阶段后，提醒用户做 Git 存档。
 3. 删除/覆盖已有文件、安装依赖、联网部署、花钱操作，必须先请示。
-4. 测试相关工作按项目技能执行：用例设计 `test-case-design`、脚本生成 `test-script-gen`、执行与记录 `test-run`、失败排查 `test-triage`（位于 `.thincoder/skills/`）。改完产品代码必跑 `npm run test:e2e`，收口前必须全部通过；测试失败时，不论产品还是脚本缺陷，改之前先告诉用户。
+4. 测试相关工作按项目技能执行：用例设计 `test-case-design`、脚本生成 `test-script-gen`、执行与记录 `test-run`、失败排查 `test-triage`（位于 `.thincoder/skills/`）。手写 Playwright 端到端测试已废弃（见 docs/deprecated/playwright-tests.md），由 Midscene 视觉驱动测试试点取代、尚未收口；测试失败时，不论产品还是脚本缺陷，改之前先告诉用户。
 
 ## 部署规范
 - 网站部署统一用 EdgeOne Pages（现已升级为 EdgeOne Makers，产品功能不变）：未安装 CLI 则先执行 npm i -g edgeone

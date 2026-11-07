@@ -2,6 +2,10 @@ node_modules/
 test-results/
 playwright-report/
 test/e2e/runs/
+midscene_run/
+.env
+.env.*
+!.env.example
 .DS_Store
 .thincoder/*
 !.thincoder/skills/
